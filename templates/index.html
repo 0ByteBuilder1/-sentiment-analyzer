@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sentiment Analyzer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    /* ── tokens ──────────────────────────────────────────────── */
+    :root {
+      --bg:         #0d0f14;
+      --surface:    #161a22;
+      --border:     #252b38;
+      --text:       #e4e8f0;
+      --muted:      #6b7585;
+      --accent:     #7c6af7;
+      --accent-glow:#7c6af733;
+      --pos:        #34d399;
+      --pos-bg:     #0d2e22;
+      --neu:        #f59e0b;
+      --neu-bg:     #2a1f07;
+      --neg:        #f87171;
+      --neg-bg:     #2d1010;
+      --mono:       'JetBrains Mono', monospace;
+      --sans:       'Inter', sans-serif;
+      --radius:     10px;
+    }
+
+    /* ── reset ───────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2.5rem 1.25rem 4rem;
+    }
+
+    /* ── header ──────────────────────────────────────────────── */
+    header {
+      width: 100%;
+      max-width: 760px;
+      margin-bottom: 2.5rem;
+    }
+    .header-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--mono);
+      font-size: .7rem;
+      letter-spacing: .08em;
+      color: var(--accent);
+      border: 1px solid var(--accent);
+      border-radius: 999px;
+      padding: 3px 10px;
+      margin-bottom: .85rem;
+    }
+    .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+    h1 {
+      font-size: clamp(1.7rem, 4vw, 2.4rem);
+      font-weight: 600;
+      letter-spacing: -.02em;
+      line-height: 1.15;
+    }
+    h1 span { color: var(--accent); }
+    .subtitle { color: var(--muted); font-size: .9rem; margin-top: .4rem; font-weight: 300; }
+
+    /* ── model status bar ────────────────────────────────────── */
+    .status-bar {
+      display: flex;
+      gap: 1rem;
+      margin-top: 1.2rem;
+      flex-wrap: wrap;
+    }
+    .status-chip {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: .75rem;
+      font-family: var(--mono);
+      color: var(--muted);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 4px 10px;
+    }
+    .status-chip .pip { width: 7px; height: 7px; border-radius: 50%; background: var(--border); transition: background .4s; }
+    .status-chip.ready .pip  { background: var(--pos); box-shadow: 0 0 6px var(--pos); }
+    .status-chip.loading .pip { background: var(--neu); box-shadow: 0 0 6px var(--neu); animation: pulse 1.2s infinite; }
+
+    /* ── card ────────────────────────────────────────────────── */
+    .card {
+      width: 100%;
+      max-width: 760px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+      margin-bottom: 1.25rem;
+    }
+
+    /* ── textarea ────────────────────────────────────────────── */
+    textarea {
+      width: 100%;
+      min-height: 130px;
+      resize: vertical;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: .95rem;
+      line-height: 1.6;
+      padding: .85rem 1rem;
+      outline: none;
+      transition: border-color .2s;
+    }
+    textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+    textarea::placeholder { color: var(--muted); }
+
+    .input-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: .75rem;
+      flex-wrap: wrap;
+      gap: .5rem;
+    }
+    .char-count { font-size: .78rem; color: var(--muted); font-family: var(--mono); }
+    .char-count.warn { color: var(--neg); }
+
+    /* ── tabs ────────────────────────────────────────────────── */
+    .tabs { display: flex; gap: .5rem; margin-bottom: 1rem; }
+    .tab {
+      font-size: .8rem;
+      font-family: var(--mono);
+      padding: 5px 14px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      transition: all .2s;
+    }
+    .tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* batch textarea */
+    #batchInput {
+      min-height: 110px;
+      font-size: .85rem;
+    }
+
+    /* ── button ──────────────────────────────────────────────── */
+    button.btn-primary {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: .65rem 1.5rem;
+      font-size: .9rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      transition: opacity .2s, transform .1s;
+    }
+    button.btn-primary:hover { opacity: .88; }
+    button.btn-primary:active { transform: scale(.97); }
+    button.btn-primary:disabled { opacity: .4; cursor: not-allowed; }
+    .spinner {
+      width: 14px; height: 14px;
+      border: 2px solid rgba(255,255,255,.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      display: none;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── results ─────────────────────────────────────────────── */
+    #results { display: none; }
+
+    .ensemble-banner {
+      border-radius: var(--radius);
+      padding: 1.1rem 1.4rem;
+      margin-bottom: 1.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    .ensemble-banner.POSITIVE { background: var(--pos-bg); border: 1px solid var(--pos); }
+    .ensemble-banner.NEGATIVE { background: var(--neg-bg); border: 1px solid var(--neg); }
+    .ensemble-banner.NEUTRAL  { background: var(--neu-bg); border: 1px solid var(--neu); }
+
+    .ensemble-label {
+      font-size: 1.5rem;
+      font-weight: 700;
+      font-family: var(--mono);
+      letter-spacing: .04em;
+    }
+    .POSITIVE .ensemble-label { color: var(--pos); }
+    .NEGATIVE .ensemble-label { color: var(--neg); }
+    .NEUTRAL  .ensemble-label { color: var(--neu); }
+    .ensemble-sub { font-size: .78rem; color: var(--muted); font-family: var(--mono); }
+
+    /* ── model cards ─────────────────────────────────────────── */
+    .model-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    @media (max-width: 540px) { .model-grid { grid-template-columns: 1fr; } }
+
+    .model-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.1rem 1.2rem;
+    }
+    .model-name {
+      font-size: .72rem;
+      font-family: var(--mono);
+      color: var(--muted);
+      letter-spacing: .06em;
+      margin-bottom: .6rem;
+      display: flex;
+      justify-content: space-between;
+    }
+    .model-result {
+      font-size: 1.15rem;
+      font-weight: 700;
+      font-family: var(--mono);
+      margin-bottom: .85rem;
+    }
+    .model-result.POSITIVE { color: var(--pos); }
+    .model-result.NEGATIVE { color: var(--neg); }
+    .model-result.NEUTRAL  { color: var(--neu); }
+
+    /* score bars */
+    .score-row { display: flex; flex-direction: column; gap: .35rem; }
+    .score-item { display: flex; align-items: center; gap: .6rem; font-size: .75rem; }
+    .score-label { font-family: var(--mono); color: var(--muted); width: 54px; flex-shrink: 0; }
+    .bar-track { flex: 1; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+    .bar-fill   { height: 100%; border-radius: 3px; transition: width .6s ease; }
+    .bar-fill.pos { background: var(--pos); }
+    .bar-fill.neu { background: var(--neu); }
+    .bar-fill.neg { background: var(--neg); }
+    .score-val  { font-family: var(--mono); font-size: .72rem; color: var(--text); width: 38px; text-align: right; }
+
+    .latency-chip {
+      display: inline-block;
+      font-family: var(--mono);
+      font-size: .68rem;
+      color: var(--muted);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 1px 6px;
+    }
+
+    .not-ready-msg {
+      font-size: .82rem;
+      color: var(--muted);
+      font-style: italic;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* ── batch results ───────────────────────────────────────── */
+    .batch-item {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: .85rem 1rem;
+      margin-bottom: .7rem;
+    }
+    .batch-item-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: .4rem;
+      gap: .5rem;
+      flex-wrap: wrap;
+    }
+    .batch-text { font-size: .82rem; color: var(--muted); font-style: italic; }
+    .pill {
+      font-family: var(--mono);
+      font-size: .72rem;
+      font-weight: 600;
+      border-radius: 4px;
+      padding: 2px 8px;
+    }
+    .pill.POSITIVE { background: var(--pos-bg); color: var(--pos); }
+    .pill.NEGATIVE { background: var(--neg-bg); color: var(--neg); }
+    .pill.NEUTRAL  { background: var(--neu-bg); color: var(--neu); }
+
+    /* ── history ─────────────────────────────────────────────── */
+    .section-title {
+      font-size: .72rem;
+      font-family: var(--mono);
+      letter-spacing: .07em;
+      color: var(--muted);
+      text-transform: uppercase;
+      margin-bottom: .8rem;
+    }
+    #historyList .batch-item { cursor: pointer; transition: border-color .2s; }
+    #historyList .batch-item:hover { border-color: var(--accent); }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-badge"><span class="dot"></span> LIVE</div>
+  <h1>Sentiment <span>Analyzer</span></h1>
+  <p class="subtitle">VADER + RoBERTa ensemble — running locally</p>
+
+  <div class="status-bar">
+    <div class="status-chip ready" id="vaderChip">
+      <span class="pip"></span> VADER
+    </div>
+    <div class="status-chip loading" id="robertaChip">
+      <span class="pip"></span> RoBERTa
+    </div>
+    <div class="status-chip" id="deviceChip" style="display:none">
+      <span class="pip ready"></span> <span id="deviceLabel">cpu</span>
+    </div>
+  </div>
+</header>
+
+<!-- ── Input card ─────────────────────────────────────────────────────────── -->
+<div class="card">
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('single')">Single</button>
+    <button class="tab"        onclick="switchTab('batch')">Batch</button>
+  </div>
+
+  <!-- single -->
+  <div class="tab-panel active" id="singlePanel">
+    <textarea id="textInput" placeholder="Type or paste text to analyse…" oninput="onInput()"></textarea>
+    <div class="input-footer">
+      <span class="char-count" id="charCount">0 / 5000</span>
+      <button class="btn-primary" id="analyzeBtn" onclick="analyze()">
+        <span class="spinner" id="spinner"></span>
+        Analyse
+      </button>
+    </div>
+  </div>
+
+  <!-- batch -->
+  <div class="tab-panel" id="batchPanel">
+    <textarea id="batchInput" placeholder="One sentence per line (max 20 lines)…"></textarea>
+    <div class="input-footer">
+      <span class="char-count" id="batchCount">0 lines</span>
+      <button class="btn-primary" id="batchBtn" onclick="analyzeBatch()">
+        <span class="spinner" id="batchSpinner"></span>
+        Analyse Batch
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Results ────────────────────────────────────────────────────────────── -->
+<div id="results" style="width:100%;max-width:760px">
+
+  <!-- Ensemble banner -->
+  <div class="ensemble-banner" id="ensembleBanner">
+    <div>
+      <div class="ensemble-label" id="ensembleLabel">—</div>
+      <div class="ensemble-sub">Ensemble decision</div>
+    </div>
+    <div style="text-align:right">
+      <div class="section-title" style="margin:0 0 .2rem">analysed text</div>
+      <div id="analysedText" style="font-size:.8rem;color:var(--muted);max-width:380px;text-align:right;word-break:break-word"></div>
+    </div>
+  </div>
+
+  <!-- Model grid -->
+  <div class="model-grid" id="modelGrid"></div>
+
+  <!-- Batch results -->
+  <div id="batchResults"></div>
+</div>
+
+<!-- ── History ────────────────────────────────────────────────────────────── -->
+<div class="card" id="historyCard" style="display:none;width:100%;max-width:760px;margin-top:1.25rem">
+  <div class="section-title">Recent analyses</div>
+  <div id="historyList"></div>
+</div>
+
+<script>
+const API = '';   // same origin; change to http://localhost:5000 if running separately
+let currentTab = 'single';
+const history  = [];
+
+// ── Status polling ─────────────────────────────────────────────────────────
+async function pollStatus() {
+  try {
+    const r = await fetch(`${API}/api/status`);
+    const d = await r.json();
+    const rc = document.getElementById('robertaChip');
+    if (d.roberta_ready) {
+      rc.classList.remove('loading');
+      rc.classList.add('ready');
+    }
+    const dc = document.getElementById('deviceChip');
+    dc.style.display = 'flex';
+    dc.classList.add('ready');
+    document.getElementById('deviceLabel').textContent = d.device.toUpperCase();
+    if (!d.roberta_ready) setTimeout(pollStatus, 2500);
+  } catch { setTimeout(pollStatus, 3000); }
+}
+pollStatus();
+
+// ── Tabs ───────────────────────────────────────────────────────────────────
+function switchTab(t) {
+  currentTab = t;
+  document.getElementById('results').style.display = 'none';
+  document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(el => el.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById(t === 'single' ? 'singlePanel' : 'batchPanel').classList.add('active');
+}
+
+// ── Char counter ───────────────────────────────────────────────────────────
+function onInput() {
+  const v = document.getElementById('textInput').value;
+  const el = document.getElementById('charCount');
+  el.textContent = `${v.length} / 5000`;
+  el.classList.toggle('warn', v.length > 4800);
+}
+document.getElementById('batchInput').addEventListener('input', () => {
+  const lines = document.getElementById('batchInput').value.split('\n').filter(l => l.trim()).length;
+  const el = document.getElementById('batchCount');
+  el.textContent = `${lines} line${lines !== 1 ? 's' : ''}`;
+  el.classList.toggle('warn', lines > 20);
+});
+
+// ── Single analyse ─────────────────────────────────────────────────────────
+async function analyze() {
+  const text = document.getElementById('textInput').value.trim();
+  if (!text) return;
+  setLoading('analyzeBtn', 'spinner', true);
+  try {
+    const r  = await fetch(`${API}/api/analyze`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({text}),
+    });
+    const d = await r.json();
+    if (d.error) { alert(d.error); return; }
+    renderSingle(d);
+    addHistory(d);
+  } catch (e) {
+    alert('Could not reach the Flask server. Is it running?');
+  } finally {
+    setLoading('analyzeBtn', 'spinner', false);
+  }
+}
+
+// ── Batch analyse ──────────────────────────────────────────────────────────
+async function analyzeBatch() {
+  const raw   = document.getElementById('batchInput').value;
+  const texts = raw.split('\n').map(l => l.trim()).filter(Boolean);
+  if (!texts.length) return;
+  if (texts.length > 20) { alert('Max 20 lines.'); return; }
+  setLoading('batchBtn', 'batchSpinner', true);
+  try {
+    const r = await fetch(`${API}/api/batch`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({texts}),
+    });
+    const d = await r.json();
+    if (d.error) { alert(d.error); return; }
+    renderBatch(d.results);
+  } catch {
+    alert('Could not reach the Flask server. Is it running?');
+  } finally {
+    setLoading('batchBtn', 'batchSpinner', false);
+  }
+}
+
+// ── Render helpers ─────────────────────────────────────────────────────────
+function setLoading(btnId, spinnerId, on) {
+  document.getElementById(btnId).disabled    = on;
+  document.getElementById(spinnerId).style.display = on ? 'block' : 'none';
+}
+
+function renderSingle(d) {
+  document.getElementById('batchResults').innerHTML = '';
+
+  // ensemble banner
+  const banner = document.getElementById('ensembleBanner');
+  banner.className = `ensemble-banner ${d.ensemble}`;
+  document.getElementById('ensembleLabel').textContent = d.ensemble;
+  document.getElementById('analysedText').textContent  = truncate(d.text, 120);
+
+  // model cards
+  const grid = document.getElementById('modelGrid');
+  grid.innerHTML = '';
+  grid.appendChild(vaderCard(d.vader));
+  grid.appendChild(robertaCard(d.roberta));
+
+  document.getElementById('results').style.display = 'block';
+  document.getElementById('results').scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+function renderBatch(results) {
+  document.getElementById('ensembleBanner').className = 'ensemble-banner';
+  document.getElementById('modelGrid').innerHTML = '';
+  const el = document.getElementById('batchResults');
+  el.innerHTML = '';
+  results.forEach((d, i) => {
+    el.innerHTML += `
+      <div class="batch-item">
+        <div class="batch-item-header">
+          <span style="font-size:.8rem;font-weight:500">#${i+1}</span>
+          <span class="pill ${d.ensemble}">${d.ensemble}</span>
+        </div>
+        <div class="batch-text">${escHtml(d.text)}</div>
+        <div style="margin-top:.5rem;display:flex;gap:.5rem;flex-wrap:wrap">
+          <span class="latency-chip">VADER ${d.vader.compound > 0 ? '+' : ''}${d.vader.compound}</span>
+          ${d.roberta.ready
+            ? `<span class="latency-chip">RoBERTa ${d.roberta.label} ${pct(d.roberta.confidence)}</span>`
+            : `<span class="latency-chip">RoBERTa loading…</span>`}
+        </div>
+      </div>`;
+  });
+  document.getElementById('results').style.display = 'block';
+  document.getElementById('results').scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+function vaderCard(v) {
+  const div = document.createElement('div');
+  div.className = 'model-card';
+  div.innerHTML = `
+    <div class="model-name"><span>VADER</span><span class="latency-chip">${v.latency_ms} ms</span></div>
+    <div class="model-result ${v.label}">${v.label}</div>
+    <div class="score-row">
+      ${bar('positive', v.positive, 'pos')}
+      ${bar('neutral',  v.neutral,  'neu')}
+      ${bar('negative', v.negative, 'neg')}
+      ${bar('compound', Math.abs(v.compound), v.compound >= 0 ? 'pos' : 'neg', v.compound, true)}
+    </div>`;
+  return div;
+}
+
+function robertaCard(r) {
+  const div = document.createElement('div');
+  div.className = 'model-card';
+  if (!r.ready) {
+    div.innerHTML = `
+      <div class="model-name">RoBERTa</div>
+      <div class="not-ready-msg">⏳ Model loading, please wait…</div>`;
+  } else {
+    div.innerHTML = `
+      <div class="model-name"><span>RoBERTa</span><span class="latency-chip">${r.latency_ms} ms</span></div>
+      <div class="model-result ${r.label}">${r.label}</div>
+      <div class="score-row">
+        ${bar('confidence', r.confidence, r.label === 'POSITIVE' ? 'pos' : r.label === 'NEGATIVE' ? 'neg' : 'neu', null, false)}
+      </div>`;
+  }
+  return div;
+}
+
+function bar(label, value, cls, rawVal = null, showRaw = false) {
+  const display = rawVal !== null ? (rawVal > 0 ? '+' : '') + rawVal.toFixed(4) : pct(value);
+  return `
+    <div class="score-item">
+      <span class="score-label">${label}</span>
+      <div class="bar-track"><div class="bar-fill ${cls}" style="width:${Math.abs(value)*100}%"></div></div>
+      <span class="score-val">${showRaw ? display : pct(value)}</span>
+    </div>`;
+}
+
+// ── History ────────────────────────────────────────────────────────────────
+function addHistory(d) {
+  history.unshift(d);
+  if (history.length > 10) history.pop();
+  const card = document.getElementById('historyCard');
+  const list = document.getElementById('historyList');
+  card.style.display = 'block';
+  list.innerHTML = history.map((h, i) => `
+    <div class="batch-item" onclick="replayHistory(${i})">
+      <div class="batch-item-header">
+        <span class="pill ${h.ensemble}">${h.ensemble}</span>
+        <span class="latency-chip" style="font-size:.68rem">${timeAgo(h._ts)}</span>
+      </div>
+      <div class="batch-text">${escHtml(truncate(h.text, 80))}</div>
+    </div>`).join('');
+}
+
+function replayHistory(i) {
+  const d = history[i];
+  document.getElementById('textInput').value = d.text;
+  onInput();
+  renderSingle(d);
+  window.scrollTo({top: 0, behavior: 'smooth'});
+}
+
+// ── Utils ──────────────────────────────────────────────────────────────────
+function pct(v) { return (v * 100).toFixed(1) + '%'; }
+function truncate(s, n) { return s.length > n ? s.slice(0, n) + '…' : s; }
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function timeAgo(ts) {
+  if (!ts) return 'just now';
+  const s = Math.round((Date.now() - ts) / 1000);
+  if (s < 60)   return `${s}s ago`;
+  if (s < 3600) return `${Math.round(s/60)}m ago`;
+  return `${Math.round(s/3600)}h ago`;
+}
+
+// Patch addHistory to record timestamp
+const _addHistory = addHistory;
+function addHistory(d) { d._ts = Date.now(); _addHistory(d); }
+
+// Enter key shortcut
+document.getElementById('textInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) analyze();
+});
+</script>
+</body>
+</html>
