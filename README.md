@@ -2,7 +2,7 @@
 
 A dual-model sentiment analysis web app built with **Flask**, **VADER**, and **RoBERTa** — running fully locally with a clean browser-based UI.
 
-> Internship Project — Built as a demonstration of NLP sentiment analysis using rule-based and transformer-based models with an ensemble decision layer.
+> Built as a demonstration of NLP sentiment analysis using rule-based and transformer-based models with an ensemble decision layer.
 
 ---
 
