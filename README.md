@@ -4,6 +4,7 @@ A dual-model sentiment analysis web app built with **Flask**, **VADER**, and **R
 
 > Built as a demonstration of NLP sentiment analysis using rule-based and transformer-based models with an ensemble decision layer.
 
+Codtech Intern ID: CITS3134
 ---
 
 ##  Features
