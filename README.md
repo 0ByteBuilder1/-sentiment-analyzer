@@ -3,7 +3,6 @@
 A dual-model sentiment analysis web app built with **Flask**, **VADER**, and **RoBERTa** — running fully locally with a clean browser-based UI.
 
 > Built as a demonstration of NLP sentiment analysis using rule-based and transformer-based models with an ensemble decision layer.
-> Codtech Intern ID: CITS3134
 
 ---
 
@@ -198,3 +197,13 @@ else:
 ## 📄 License
 
 MIT License — free to use and modify.
+
+---
+
+## Details
+INTERN ID : CITS3134 | 
+NAME      : YES CHANDRA |
+DURATION  : 4 WEEKS |
+PROJECT NAME : AI Sentiment Analyzer |
+
+---
