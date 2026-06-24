@@ -44,7 +44,7 @@ sentiment_analyzer/
 
 ---
 
-## Screenshots and output
+## Screenshots and Output
 
 <p align="center">
   <img src="screenshots/main.png" width="45%">
