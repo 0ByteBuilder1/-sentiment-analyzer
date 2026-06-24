@@ -42,6 +42,8 @@ sentiment_analyzer/
     └── index.html          # Frontend UI (served by Flask)
 ```
 
+---
+
 ## Screenshots and output
 
 <p align="center">
