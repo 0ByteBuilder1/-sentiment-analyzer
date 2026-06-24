@@ -42,6 +42,17 @@ sentiment_analyzer/
     └── index.html          # Frontend UI (served by Flask)
 ```
 
+## Screenshots and output
+
+<p align="center">
+  <img src="screenshots/main.png" width="45%">
+  <img src="screenshots/neutral.png" width="45%">
+</p>
+<p align="center">
+  <img src="screenshots/positive.png" width="45%">
+  <img src="screenshots/negative.png" width="45%">
+</p>
+
 ---
 
 ##  Setup & Installation
